@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -e
+
+SN="$1"
+if [ -z "${SN}" ] ; then
+	echo A non empty serial number is required as first argument
+fi
+
+SPEED=${SPEED=16500}
+CHIP="MX25L12835F/MX25L12845E/MX25L12865E/MX25L12873F"
+DEV="linux_spi:dev=/dev/spidev0.0,spispeed=${SPEED}"
+
+echo "Testing for a flash chip"
+flashrom -p ${DEV} -c ${CHIP} 
+
+echo "Dumping flash"
+
+# Secure the flash twice
+flashrom -r AP105-${SN}-dump0.rom -p ${DEV} -c ${CHIP} 
+flashrom -r AP105-${SN}-dump1.rom -p ${DEV} -c ${CHIP}
+
+echo "Patching rom"
+cp AP105-${SN}-dump0.rom AP105-${SN}-patch.rom
+dd if=/dev/zero bs=256K count=1 |tr "\000" "\377" |dd of=AP105-${SN}-patch.rom conv=notrunc
+dd if=u-boot.bin of=AP105-${SN}-patch.rom conv=notrunc
+
+
+echo "Rom patched. Press enter to flash"
+read
+flashrom -w AP105-${SN}-patch.rom -p ${DEV} -c ${CHIP}
